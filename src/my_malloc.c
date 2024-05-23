@@ -1,56 +1,102 @@
 #include <unistd.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "mymem.h"
 
-void *heap = NULL;
-void *heap_end = NULL;
+#define MIN_BLOCK_SIZE 1;
 
-typedef struct
-{
-    size_t size;
-    int free;
-} Block;
+Block *head = NULL;
 
 void *my_malloc(size_t b)
 {
-    // get heap start
-    if (heap == NULL)
+    if (b == 0)
     {
-        heap = sbrk(0);
-        heap_end = heap;
+        return NULL;
     }
-    // memory should always start with a block
-    Block *record = (Block *)heap;
-    while (record < heap_end)
+    if (head == NULL)
     {
-        if (record->free && record->size <= b)
+        head = sbrk(sizeof(Block));
+        head->size = 0;
+        head->free = 1;
+        head->next = NULL;
+    }
+    Block *prev = NULL;
+    Block *record = head;
+    while (record != NULL)
+    {
+        printf("searching\n");
+        if (record->free == 1 && record->size > b + sizeof(Block))
         {
-            printf("filled record\n");
+            printf("found split\n");
+            Block *next = record + b + sizeof(Block);
+            next->next = record->next;
+            next->size = record->size - b - sizeof(Block);
+            next->free = 1;
+            record->next = NULL;
             record->free = 0;
-            return record + sizeof(Block);
+            record->size = b;
+            if (prev != NULL)
+                prev->next = next;
+            return (void *)record + sizeof(Block);
         }
-        record += record->size;
+        else if (record->free == 1 && record->size >= b)
+        {
+            printf("found \n");
+            if (prev != NULL)
+                prev->next = record->next;
+            record->free = 0;
+            record->next = NULL;
+            return (void *)record + sizeof(Block);
+        }
+        prev = record;
+        record = record->next;
     }
-    void *p = sbrk(b + sizeof(Block));
+    printf("make\n");
+    Block *p = (Block *)sbrk(b + sizeof(Block));
     if (p == -1)
     {
         return NULL;
     }
-    heap_end += b + sizeof(Block);
-    Block header = {
-        .size = b,
-        .free = 0};
-    *(Block *)p = header;
-    return p + sizeof(Block);
+    p->free = 0;
+    p->size = b;
+    p->next = NULL;
+    return ((void *)p) + sizeof(Block);
 }
 
 void my_free(void *p)
 {
     // TODO need some better error checking
-    if (p >= sizeof(Block))
+    if (p == NULL || p < sizeof(Block))
+        return;
+    Block *header = (Block *)(p - sizeof(Block));
+    if (header->free == 1)
     {
-        Block *header = (Block *)(p - sizeof(Block));
-        header->free = 1;
+        fprintf(stderr, "Double free\n");
+        exit(1);
     }
+    Block *record = head;
+    Block *prev = NULL;
+    while (record != NULL && record <= header)
+    {
+        if (record == header)
+        {
+            fprintf(stderr, "How did we get here\n");
+            exit(1);
+        }
+        prev = record;
+        record = record->next;
+    }
+    if (prev != NULL)
+    {
+        prev->next = header;
+        header->next = record;
+    }
+    else
+    {
+        prev = head->next; // use prev as temp
+        head->next = header;
+        header->next = prev;
+    }
+    header->free = 1;
 }

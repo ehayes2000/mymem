@@ -4,46 +4,47 @@ CC = gcc
 # Compiler flags
 CFLAGS = -std=c11 -Wall -Wextra -I src/
 
-# Source and object directories
+# Directories
 SRC_DIR = src
 TEST_DIR = test
-TEST_BIN_DIR = test_bin
 OBJ_DIR = obj
+SRC_OBJ_DIR = $(OBJ_DIR)/src
+TEST_OBJ_DIR = $(OBJ_DIR)/test
+TEST_BIN_DIR = test_bin
 
-# Find all .c source files recursively in the src/ directory
-SRC_FILES = $(shell find $(SRC_DIR) -name '*.c')
-TEST_SRC_FILES = $(wildcard $(TEST_DIR)/*.c)
+# Source and test source files
+SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
+TEST_FILES = $(wildcard $(TEST_DIR)/*.c)
 
-# Create a list of object files in the obj/ directory, mirroring the directory structure
-OBJ_FILES = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC_FILES))
+# Object files for source
+SRC_OBJ = $(SRC_FILES:$(SRC_DIR)/%.c=$(SRC_OBJ_DIR)/%.o)
 
-TEST_BIN_FILES = $(patsubst $(TEST_DIR)/%.c, $(TEST_BIN_DIR)/%, $(TEST_SRC_FILES))
+# Main program executable
+TARGET = $(SRC_OBJ_DIR)/mymem
 
-# Executable name
-TARGET = mymem
-
-# Default target
 all: $(TARGET)
 
-# Rule to link the final executable
-$(TARGET): $(OBJ_FILES)
-	$(CC) $(OBJ_FILES) -o $@
+# Rule to compile and link the main executable
+$(TARGET): $(SRC_OBJ)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $^ -o $@
 
-# Rule to compile source files into object files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(dir $@)
+# Rule to compile source .c files into .o files
+$(SRC_OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test: $(TEST_BIN_FILES)
+EXCLUDE_OBJ = $(SRC_OBJ_DIR)/main.o  # Specify the object file to exclude
 
-$(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c
-	@mkdir -p $(TEST_BIN_DIR)
-	$(CC) $(CFLAGS) $< -o $@
-# Clean up build files
+$(TEST_BIN_DIR)/%: $(TEST_DIR)/%.c $(filter-out $(EXCLUDE_OBJ), $(SRC_OBJ))
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $^ -o $@
+
+# Test target to build all test binaries
+test: $(TEST_FILES:$(TEST_DIR)/%.c=$(TEST_BIN_DIR)/%)
+
 run-tests: test
-	./run_tests.sh
-clean:
-	rm -rf $(OBJ_DIR) $(TARGET) $(TEST_BIN_DIR)
+	@./run_tests.sh
 
-# Phony targets
-.PHONY: all clean
+clean:
+	@rm -rf $(OBJ_DIR) $(TEST_BIN_DIR)

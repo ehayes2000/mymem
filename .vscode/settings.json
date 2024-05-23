@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "mymem.h": "c",
+    "unistd.h": "c"
+  }
+}
