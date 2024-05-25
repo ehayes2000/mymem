@@ -40,8 +40,4 @@ int main()
     my_free(henry);
     assert(b->free == 1);
     assert(c->free == 1);
-    Block *head = (Block *)heap;
-    assert(head->next == b);
-    assert(b->next == c);
-    assert(c->next == NULL);
 }

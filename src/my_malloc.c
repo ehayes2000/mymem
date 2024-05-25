@@ -18,18 +18,16 @@ void *my_malloc(size_t b)
     {
         head = sbrk(sizeof(Block));
         head->size = 0;
-        head->free = 1;
+        head->free = 0;
         head->next = NULL;
     }
     Block *prev = NULL;
     Block *record = head;
     while (record != NULL)
     {
-        printf("searching\n");
         if (record->free == 1 && record->size > b + sizeof(Block))
         {
-            printf("found split\n");
-            Block *next = record + b + sizeof(Block);
+            Block *next = (char *)record + b + sizeof(Block);
             next->next = record->next;
             next->size = record->size - b - sizeof(Block);
             next->free = 1;
@@ -42,7 +40,6 @@ void *my_malloc(size_t b)
         }
         else if (record->free == 1 && record->size >= b)
         {
-            printf("found \n");
             if (prev != NULL)
                 prev->next = record->next;
             record->free = 0;
@@ -52,7 +49,6 @@ void *my_malloc(size_t b)
         prev = record;
         record = record->next;
     }
-    printf("make\n");
     Block *p = (Block *)sbrk(b + sizeof(Block));
     if (p == -1)
     {
@@ -64,39 +60,59 @@ void *my_malloc(size_t b)
     return ((void *)p) + sizeof(Block);
 }
 
-void my_free(void *p)
+void my_free(Block *p)
 {
-    // TODO need some better error checking
-    if (p == NULL || p < sizeof(Block))
-        return;
-    Block *header = (Block *)(p - sizeof(Block));
+    if (p == NULL || p < (void *)(head + 1))
+    {
+        fprintf(stderr, "Free on illegal region\n");
+        exit(1);
+    }
+
+    Block *header = (Block *)p - 1;
+
     if (header->free == 1)
     {
         fprintf(stderr, "Double free\n");
         exit(1);
     }
+
     Block *record = head;
     Block *prev = NULL;
-    while (record != NULL && record <= header)
+
+    // Find the correct position to insert the block back into the free list
+    int iters = 0;
+    while (record != NULL && record < header)
     {
-        if (record == header)
-        {
-            fprintf(stderr, "How did we get here\n");
-            exit(1);
-        }
+        iters++;
         prev = record;
         record = record->next;
     }
+
+    // Insert the block into the free list
+    header->next = record;
     if (prev != NULL)
     {
         prev->next = header;
-        header->next = record;
     }
     else
     {
-        prev = head->next; // use prev as temp
-        head->next = header;
-        header->next = prev;
+        fprintf(stderr, "Lost your head?\n");
+        exit(1);
     }
+
     header->free = 1;
+
+    // Coalesce with previous block if possible
+    if (prev != head && (char *)prev + prev->size + sizeof(Block) == (char *)header)
+    {
+        prev->size += header->size + sizeof(Block);
+        prev->next = header->next;
+    }
+
+    // Coalesce with next block if possible
+    if (record != NULL && (char *)header + header->size + sizeof(Block) == (char *)record)
+    {
+        header->size += record->size + sizeof(Block);
+        header->next = record->next;
+    }
 }

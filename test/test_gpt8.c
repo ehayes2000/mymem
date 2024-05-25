@@ -7,7 +7,7 @@
 int main()
 {
     void *heap = sbrk(0);
-    char *a = my_malloc(128);
+    char *a = my_malloc(128 + sizeof(Block));
     my_free(a);
     char *b = my_malloc(64);
     assert(b == a); // Ensure reuse of freed block

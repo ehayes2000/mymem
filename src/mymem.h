@@ -11,5 +11,5 @@ typedef struct
 } Block;
 
 void *my_malloc(size_t);
-void my_free(void *p);
+void my_free(Block *p);
 #endif
